@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from models.auth import User
 from helpers.token_helper import get_current_user
 from typing import Annotated 
-from helpers.chat_chain import ask_question
+# from helpers.chat_chain import ask_question
 from models.chat import Chat
 from fastapi.responses import StreamingResponse
 from models.message import Message

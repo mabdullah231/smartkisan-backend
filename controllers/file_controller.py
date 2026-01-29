@@ -8,7 +8,6 @@ from models.auth import User
 from helpers.token_helper import get_current_user
 # from models.document import Document
 # from langchain_core.documents import Document as LangchainDocument
-from models.ai import AI_Config
 import uuid
 # import httpx
 # from helpers.document_loaders import  generate_conversational_summary

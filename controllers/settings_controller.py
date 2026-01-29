@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_validator
 from typing import Annotated, Optional
 from models.auth import User as User
-from models.ai import AI_Config 
+
 from helpers.token_helper import get_current_user
 from helpers.phone_validator import validate_pakistani_phone
 from passlib.context import CryptContext
@@ -150,116 +150,4 @@ async def get_user_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching profile: {str(e)}"
-        )
-
-@settings_router.post("/admin/ai/manage-config")
-async def manage_ai_config(
-    config: AdminAiConfigPayload,
-    current_user: Annotated[User, Depends(get_current_user)]
-):
-    try:
-        # Check if user is admin
-        if current_user.user_type not in {ADMIN_USER_TYPE, SUBADMIN_USER_TYPE}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admin users can access this endpoint"
-            )
-        
-        # Check if config already exists
-        existing_config = await AI_Config.filter(id=1).first()
-        
-        if existing_config:
-            # Update existing config
-            existing_config.api_key = config.api_key
-            existing_config.model_name = config.model_name
-            await existing_config.save()
-        else:
-            # Create new config
-            await AI_Config.create(
-                id=1,  # Using fixed ID since we'll only have one config
-                api_key=config.api_key,
-                model_name=config.model_name
-            )
-        
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "success": True,
-                "detail": "AI configuration updated successfully",
-                "data": config.dict()
-            }
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating AI config: {str(e)}"
-        )
-
-@settings_router.get("/admin/ai/view-config")
-async def view_ai_config(
- current_user: Annotated[User, Depends(get_current_user)]
-):
-    try:
-        # Check if user is admin
-        if current_user.user_type not in {ADMIN_USER_TYPE, SUBADMIN_USER_TYPE}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admin users can access this endpoint"
-            )
-        
-        # Get config from database
-        config = await AI_Config.filter().first()
-        
-        if not config:
-            # Return default config if none exists
-            default_config = {
-                "api_key": "",
-                "model_name": ""
-            }
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={
-                    "success": True,
-                    "data": default_config
-                }
-            )
-        
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "success": True,
-                "data": {
-                    "api_key": config.api_key,
-                    "model_name": config.model_name
-                }
-            }
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching AI config: {str(e)}"
-        )
-    
-@settings_router.post("/admin/settings")
-async def update_admin_settings(
-    request: SettingsRequest,
-    current_user: Annotated[User, Depends(get_current_user)]
-):
-    try:
-        # Check if user is admin
-        if current_user.user_type not in {ADMIN_USER_TYPE, SUBADMIN_USER_TYPE}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admin users can access this endpoint"
-            )
-        
-        # Reuse the same logic as user settings but with admin checks
-        return await update_user_settings(request, current_user)
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating admin settings: {str(e)}"
         )

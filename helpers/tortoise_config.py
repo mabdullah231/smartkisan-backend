@@ -15,7 +15,7 @@ TORTOISE_CONFIG = {
         "models": {
             "models": [
                 "models.auth",
-                "models.ai",
+                "models.api",
                 "models.chat",
                 # "models.document",
                 "models.message",
