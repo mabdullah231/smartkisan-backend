@@ -12,6 +12,8 @@ import random
 import string
 from fastapi import Request
 import os 
+from helpers.chat_chain import ask_question
+from models.api import APIConfig
 
 class ChatPayload(BaseModel):
     question:str
@@ -39,6 +41,7 @@ chat_router = APIRouter()
 @chat_router.post("/chat")
 async def start_chat(
     data: ChatPayload,
+    request: Request,
     user: Annotated[User, Depends(get_current_user)]
 ):
     try:
@@ -49,28 +52,36 @@ async def start_chat(
             chat_name=f"Chat {random_suffix}"
         )
 
-        # Dummy bot reply (for now)
-        bot_reply = random.choice([
-            "Sure, tell me more.",
-            "I understand, go on.",
-            "That sounds interesting.",
-            "Let me think about that."
-        ])
+        stream_param = str(request.query_params.get("stream", "")).lower()
+        if stream_param in ("1", "true", "yes"):
+            # Return a streaming response. Save Message after stream completes.
+            async def responder():
+                try:
+                    final_text = ""
+                    async for chunk in ask_question(request, data.question):
+                        final_text += chunk
+                        yield chunk.encode("utf-8")
+                    # Save final assembled message
+                    await Message.create(chat=chat, question=data.question, answer=final_text)
+                except Exception as e:
+                    import logging
+                    logging.exception("Error during streaming initial chat response")
+                    # re-raise so StreamingResponse will close with server error
+                    raise
 
-        # Save message
-        await Message.create(
-            chat=chat,
-            question=data.question,
-            answer=bot_reply
-        )
+            headers = {"X-Chat-Id": str(chat.id), "X-Chat-Name": chat.chat_name}
+            return StreamingResponse(responder(), media_type="text/plain", headers=headers)
 
-        return {
-            "success": True,
-            "chat_id": chat.id,
-            "chat_name": chat.chat_name,
-            "answer": bot_reply
-        }
+        # Non-streaming fallback: collect full answer and return JSON
+        response_text = ""
+        async for chunk in ask_question(request, data.question):
+            response_text += chunk
 
+        await Message.create(chat=chat, question=data.question, answer=response_text)
+        return {"success": True, "chat_id": chat.id, "chat_name": chat.chat_name, "answer": response_text}
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -101,35 +112,46 @@ async def chat_now(id: str,user:Annotated[User,Depends(get_current_user)]):
         raise HTTPException(status_code=500,detail=f"server error {error}")
 
 @chat_router.post("/chat/{id}")
-async def chat_now(id: int, data: ChatPayload, user: Annotated[User, Depends(get_current_user)]):
+async def chat_now(id: int, data: ChatPayload, request: Request, user: Annotated[User, Depends(get_current_user)]):
     # Get chat and validate
     chat = await Chat.filter(id=id, user=user).first()
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
+    try:
+        stream_param = str(request.query_params.get("stream", "")).lower()
+        if stream_param in ("1", "true", "yes"):
+            async def responder():
+                try:
+                    final_text = ""
+                    async for chunk in ask_question(request, data.question):
+                        final_text += chunk
+                        yield chunk.encode("utf-8")
+                    # Save after streaming completes
+                    if not chat.chat_name:
+                        chat.chat_name = data.question[:50] + ("..." if len(data.question) > 50 else "")
+                        await chat.save()
+                    await Message.create(question=data.question, answer=final_text, chat=chat)
+                except Exception as e:
+                    import logging
+                    logging.exception("Error during streaming chat response")
+                    raise
 
-    # Temporary: random responses
-    sample_responses = [
-        "Sure! Here's some info for you.",
-        "I'm not sure about that, but let's figure it out!",
-        "Absolutely! Can you tell me more?",
-        "Interesting question! Let me think...",
-        "Here's a suggestion you might find useful."
-    ]
-    response = random.choice(sample_responses)
+            return StreamingResponse(responder(), media_type="text/plain")
 
-    # Save message
-    if not chat.chat_name:
-        chat.chat_name = data.question[:50] + ("..." if len(data.question) > 50 else "")
-        await chat.save()
+        # Non-streaming
+        response_text = ""
+        async for chunk in ask_question(request, data.question):
+            response_text += chunk
 
-    await Message.create(
-        question=data.question,
-        answer=response,
-        chat=chat
-    )
-
-    # Return plain response
-    return {"answer": response}
+        if not chat.chat_name:
+            chat.chat_name = data.question[:50] + ("..." if len(data.question) > 50 else "")
+            await chat.save()
+        await Message.create(question=data.question, answer=response_text, chat=chat)
+        return {"answer": response_text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # @chat_router.post("/chat/{id}")
 # async def chat_now(

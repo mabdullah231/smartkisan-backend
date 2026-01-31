@@ -12,6 +12,12 @@ import re
 import httpx
 import os
 import json
+from models.api import APIConfig
+try:
+  from google import genai
+except Exception:
+  genai = None
+import asyncio
 # langchain.debug = False
 SCRAPER_BASE_URL = os.getenv("SCRAPER_BASE_URL", "http://localhost:8000")
 DEFAULT_SYSTEM_PROMPT = """
@@ -80,6 +86,65 @@ def strip_code_fences(text: str) -> str:
     text = re.sub(r"\n?```$", "", text)
     text = text.replace("```", "")  # remove any leftover fences inside
     return text
+
+
+async def ask_question(
+    request: Request | None,
+    question: str,
+    history: List[dict] = [],
+    disabled_files: List[str] = [],
+    user_id: Optional[str] = None,
+  ) -> AsyncGenerator[str, None]:
+    """Simple integration with Gemini (google-genai).
+
+    For now this yields the full response once. It lowercases the query
+    per project requirement when provider is GEMINI.
+    """
+    try:
+      api = await APIConfig.filter(is_active=True, provider__iexact="GEMINI").first()
+      if not api or not api.api_key:
+        raise RuntimeError("Gemini API not configured or missing api_key")
+
+      if genai is None:
+        raise RuntimeError("google-genai package not installed")
+
+      # ensure env var available for client (client also accepts explicit key in some versions)
+      os.environ["GEMINI_API_KEY"] = api.api_key
+
+      client = genai.Client()
+
+      model_name = "gemini-2.5-flash"
+      try:
+        if api.extra_config and isinstance(api.extra_config, dict) and api.extra_config.get("model"):
+          model_name = api.extra_config.get("model")
+      except Exception:
+        pass
+
+      prompt = (question or "").lower()
+
+      # Use generate_content_stream() to get chunks as they arrive from Gemini
+      response = client.models.generate_content_stream(model=model_name, contents=prompt)
+      for chunk in response:
+        text = getattr(chunk, "text", None) or ""
+        if text:
+          # Split larger chunks into smaller pieces for typing effect (2-3 chars per yield)
+          chunk_size = 2
+          for i in range(0, len(text), chunk_size):
+            yield text[i:i+chunk_size]
+            await asyncio.sleep(0.03)  # Small delay between chars for typing feel
+
+    except Exception as e:
+      # Check if it's a rate limit error (429)
+      error_str = str(e).lower()
+      if "429" in error_str or "quota" in error_str or "rate limit" in error_str or "resource_exhausted" in error_str:
+        # Stream a user-friendly rate limit message
+        rate_limit_msg = "AI service rate limit exceeded. Please contact the Administrator to increase quota or try again later."
+        for i in range(0, len(rate_limit_msg), 2):
+          yield rate_limit_msg[i:i+2]
+          await asyncio.sleep(0.03)
+      else:
+        # For other errors, raise so callers can log and handle
+        raise
 
 # async def ask_question(
 #     request: Request,
