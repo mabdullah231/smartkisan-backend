@@ -2,7 +2,7 @@ from fastapi import APIRouter,Depends,HTTPException, Request
 from pydantic import BaseModel
 from models.auth import User
 from helpers.token_helper import get_current_user
-from typing import Annotated 
+from typing import Annotated, List, Dict, Optional
 # from helpers.chat_chain import ask_question
 from models.chat import Chat
 from fastapi.responses import StreamingResponse
@@ -17,6 +17,7 @@ from models.api import APIConfig
 
 class ChatPayload(BaseModel):
     question:str
+    history: Optional[List[Dict]] = []
 class UpdateChatNamePayload(BaseModel):
     name:str
 
@@ -43,7 +44,7 @@ async def start_chat(
             async def responder():
                 try:
                     final_text = ""
-                    async for chunk in ask_question(request, data.question):
+                    async for chunk in ask_question(request, data.question, data.history):
                         final_text += chunk
                         yield chunk.encode("utf-8")
                     await Message.create(chat=chat, question=data.question, answer=final_text)
@@ -64,7 +65,7 @@ async def start_chat(
 
         # Non-streaming fallback: collect full answer and return JSON
         response_text = ""
-        async for chunk in ask_question(request, data.question):
+        async for chunk in ask_question(request, data.question, data.history):
             response_text += chunk
 
         await Message.create(chat=chat, question=data.question, answer=response_text)
@@ -112,7 +113,7 @@ async def chat_now(id: int, data: ChatPayload, request: Request, user: Annotated
             async def responder():
                 try:
                     final_text = ""
-                    async for chunk in ask_question(request, data.question):
+                    async for chunk in ask_question(request, data.question, data.history):
                         final_text += chunk
                         yield chunk.encode("utf-8")
                     # Save after streaming completes
@@ -129,7 +130,7 @@ async def chat_now(id: int, data: ChatPayload, request: Request, user: Annotated
 
         # Non-streaming
         response_text = ""
-        async for chunk in ask_question(request, data.question):
+        async for chunk in ask_question(request, data.question, data.history):
             response_text += chunk
 
         if not chat.chat_name:
