@@ -128,7 +128,11 @@ async def signin(data: LoginPayload):
             status_code=400, 
             detail="User Not found"
         )
-    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Account is disabled. Please contact support."
+        )
     try:
         is_varified = ph.verify(user.password, data.password)
         print(f"IS Varified: {is_varified}")
@@ -187,7 +191,9 @@ async def delete_account(user: Annotated[User, Depends(get_current_user)],):
 async def account_verificatoin(payload: AccountVerificationPayload):
     user = await User.filter(id=payload.user_id).first()
     if not user:
-        raise HTTPException("User not found")
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled. Please contact support.")
     print(f"Payload: {payload.code}")
     code = await Code.filter(user__id=user.id).order_by("-id").first()
     
@@ -223,6 +229,8 @@ async def password_reset_code(payload: PasswordResetCode):
     user = await User.filter(phone=payload.phone).first()
     if not user:
         raise HTTPException(detail="Account not found ", status_code=400)
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled. Please contact support.")
     try:
         await generate_code("account_activation", user)
         return {
@@ -237,6 +245,8 @@ async def password_reset_code(payload: PasswordResetCode):
     user = await User.filter(phone=payload.phone).first()
     if not user:
         raise HTTPException(detail="Account not found ", status_code=400)
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled. Please contact support.")
     try:
         await generate_code("password_reset", user)
         return {
@@ -254,6 +264,8 @@ async def reset_password(payload: VerifyCodePayload):
     user = await User.filter(phone=payload.phone).first()
     if not user:
         raise HTTPException(detail="User not found", status_code=400)
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled. Please contact support.")
     if user:
         code  = await Code.filter(user__id=user.id, type="password_reset").order_by("-id").first()
         if payload.code == code.value:
@@ -286,16 +298,17 @@ async def reset_password(user: Annotated[User, Depends(get_current_user)]):
 async def reset_password(payload: ResetCodePayload):
     try:
         user = await User.filter(phone=payload.phone).first()
-        if user:
-            hashed_password = ph.hash(payload.password)
-            user.password = hashed_password
-            await user.save()
-            return {
-                "success": True,
-                "detail": "Password reset successfully"
-            }
-        else:
+        if not user:
             raise HTTPException(detail="User not found", status_code=400)
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is disabled. Please contact support.")
+        hashed_password = ph.hash(payload.password)
+        user.password = hashed_password
+        await user.save()
+        return {
+            "success": True,
+            "detail": "Password reset successfully"
+        }
     except Exception as e:
         raise HTTPException(detail=str(e), status_code=400)
     

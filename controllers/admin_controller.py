@@ -10,6 +10,11 @@ import string
 import os 
 
 
+# Pydantic models for admin users
+class UserTogglePayload(BaseModel):
+    is_active: bool
+
+
 # Pydantic models for validation
 class APIConfigPayload(BaseModel):
     category: str
@@ -177,3 +182,54 @@ async def delete_api(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting API: {str(e)}")
+
+
+# GET all non-admin users (for admin users management page)
+@admin_router.get("/users")
+async def get_all_non_admin_users(user: Annotated[User, Depends(get_current_user)]):
+    if user.user_role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can access user list")
+    try:
+        users = await User.exclude(user_role="admin").values(
+            "id", "name", "phone", "is_active", "user_role"
+        )
+        # Map to frontend shape: id, name, phone, email, is_active, joined_at (User has no email/created_at)
+        out = []
+        for u in users:
+            out.append({
+                "id": u["id"],
+                "name": u["name"],
+                "phone": u["phone"],
+                "email": None,
+                "is_active": u["is_active"],
+                "joined_at": None,
+            })
+        return {"success": True, "users": out}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching users: {str(e)}")
+
+
+# PATCH enable/disable a non-admin user
+@admin_router.patch("/users/{user_id}")
+async def set_user_active(
+    user_id: int,
+    data: UserTogglePayload,
+    user: Annotated[User, Depends(get_current_user)],
+):
+    if user.user_role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can update user status")
+    if user_id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot change your own status")
+    try:
+        target = await User.get_or_none(id=user_id)
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        if target.user_role == "admin":
+            raise HTTPException(status_code=400, detail="Cannot change status of an admin")
+        target.is_active = data.is_active
+        await target.save()
+        return {"success": True, "detail": "User status updated", "is_active": target.is_active}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating user: {str(e)}")
