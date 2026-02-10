@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+import httpx
+from models.api import APIConfig 
 from models.auth import User
 from helpers.token_helper import get_current_user
 from fastapi.responses import JSONResponse
@@ -35,6 +37,7 @@ class RoleChangeResponse(BaseModel):
     success: bool
     detail: str
     user_type: int
+
 
 # Endpoints
 @user_router.get("/get-all", response_model=UserListResponse)

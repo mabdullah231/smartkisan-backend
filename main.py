@@ -10,6 +10,7 @@ from controllers.file_controller import router as kbs_router
 from controllers.file_crud_controller import router as files_router
 from controllers.chat_controller import chat_router
 from controllers.admin_controller import admin_router
+from controllers.weather_controller import weather_router
 # from controllers.vector_db_controller import router as vector_db_router
 # from controllers.scraper_controller import router as scraper_router
 # from controllers.disease_controller import disease_router
@@ -33,6 +34,7 @@ app.include_router(kbs_router, prefix='/api', tags=['Knowledge Base'])
 app.include_router(files_router, prefix='/api', tags=['Uploaded Files'])
 app.include_router(chat_router, prefix='/api', tags=['Chat'])
 app.include_router(admin_router, prefix='/api', tags=['Admin'])
+app.include_router(weather_router, prefix='/api', tags=['Weather'])
 # app.include_router(vector_db_router, prefix='/api', tags=['Vector DB'])
 # app.include_router(scraper_router, prefix='/api', tags=['Scraper'])
 # app.include_router(disease_router, prefix='/api', tags=['Disease Detector'])
