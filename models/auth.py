@@ -9,7 +9,7 @@ class User(Model):
     phone = fields.CharField(max_length=15)  # Pakistani format: 03XXXXXXXXX (11 digits)
     phone_verified = fields.BooleanField(default=False)
     password = fields.CharField(max_length=255)
-    codes = fields.ReverseRelation['Code']
+    iot_configurations = fields.ReverseRelation['Iot_Configuration']
     user_role = fields.CharField(max_length=255, default="user")
     is_active = fields.BooleanField(default=True)
 
@@ -25,3 +25,14 @@ class Code(Model):
     user = fields.ForeignKeyField('models.User', related_name='codes', on_delete=fields.CASCADE)
     class Meta:
         table = 'codes'
+
+class Iot_Configuration(Model):
+    __tablename__ = 'iot_configuration'
+
+    id = fields.IntField(primary_key=True, index=True)
+    device_url = fields.CharField(max_length=255, nullable=True)
+    created_at = fields.DatetimeField(default=datetime.utcnow, nullable=False)
+    updated_at = fields.DatetimeField(default=datetime.utcnow, on_update=datetime.utcnow, nullable=False)
+    user = fields.ForeignKeyField('models.User', related_name='iot_configurations', on_delete=fields.CASCADE)
+    class Meta:
+        table = 'iot_configuration'
