@@ -19,6 +19,7 @@ TORTOISE_CONFIG = {
                 "models.chat",
                 # "models.document",
                 "models.message",
+                "models.suggestion",
                 "aerich.models"
             ]
         }
@@ -29,8 +30,12 @@ TORTOISE_CONFIG = {
 async def lifespan(app: FastAPI):
     print("TORTOISE_CONFIG:", TORTOISE_CONFIG)  # Add this before Tortoise.init
     await Tortoise.init(config=TORTOISE_CONFIG)
-    # app.state.vector_store = await setup_vector_store()
-    # # print(app.state.vector_store)
+    from helpers.suggestion_scheduler import (
+        shutdown_suggestion_scheduler,
+        start_suggestion_scheduler,
+    )
+
+    start_suggestion_scheduler()
     yield
-    
-    
+    shutdown_suggestion_scheduler()
+    await Tortoise.close_connections()

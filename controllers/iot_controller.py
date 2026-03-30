@@ -24,10 +24,18 @@ async def get_iot_status(user: Annotated[User, Depends(get_current_user)]):
             response = await client.get(iot_config.device_url)
             response.raise_for_status()
             data = response.json()
-            # Validate expected fields
-            if "raw" not in data or "status" not in data:
+            # Validate expected fields from IoT device
+            if "value" not in data or "soil_status" not in data:
                 raise HTTPException(status_code=502, detail="Invalid response format from IoT device")
-            return {"success": True, "data": data}
+            
+            # Transform response to match frontend expectations
+            transformed_data = {
+                "raw": data.get("value"),           # Sensor reading
+                "status": data.get("soil_status"),  # Soil status (e.g., "Very Dry", "Dry")
+                "lastTimestamp": data.get("lastTimestamp"),  # Include timestamp for reference
+                "deviceStatus": data.get("status")  # Device online/offline status
+            }
+            return {"success": True, "data": transformed_data}
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="IoT device request timed out")
     except httpx.HTTPStatusError as e:

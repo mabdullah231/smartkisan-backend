@@ -1,6 +1,5 @@
 from tortoise import fields
 from tortoise.models import Model
-from datetime import datetime
 
 
 class User(Model):
@@ -12,6 +11,9 @@ class User(Model):
     iot_configurations = fields.ReverseRelation['Iot_Configuration']
     user_role = fields.CharField(max_length=255, default="user")
     is_active = fields.BooleanField(default=True)
+    # Saved farm coordinates (same units as weather API: decimal degrees)
+    farm_latitude = fields.FloatField(null=True)
+    farm_longitude = fields.FloatField(null=True)
 
 class Code(Model):
     __tablename__ = 'codes'
@@ -20,8 +22,8 @@ class Code(Model):
     type = fields.CharField(max_length=255, nullable=False)
     value = fields.TextField(nullable=False)
     expires_at = fields.DateField(nullable=False)
-    created_at = fields.DatetimeField(default=datetime.utcnow, nullable=False)
-    updated_at = fields.DatetimeField(default=datetime.utcnow, on_update=datetime.utcnow, nullable=False)
+    created_at = fields.DatetimeField(auto_now_add=True, nullable=False)
+    updated_at = fields.DatetimeField(auto_now=True, nullable=False)
     user = fields.ForeignKeyField('models.User', related_name='codes', on_delete=fields.CASCADE)
     class Meta:
         table = 'codes'
@@ -31,8 +33,8 @@ class Iot_Configuration(Model):
 
     id = fields.IntField(primary_key=True, index=True)
     device_url = fields.CharField(max_length=255, nullable=True)
-    created_at = fields.DatetimeField(default=datetime.utcnow, nullable=False)
-    updated_at = fields.DatetimeField(default=datetime.utcnow, on_update=datetime.utcnow, nullable=False)
+    created_at = fields.DatetimeField(auto_now_add=True, nullable=False)
+    updated_at = fields.DatetimeField(auto_now=True, nullable=False)
     user = fields.ForeignKeyField('models.User', related_name='iot_configurations', on_delete=fields.CASCADE)
     class Meta:
         table = 'iot_configuration'

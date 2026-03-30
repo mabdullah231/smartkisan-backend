@@ -41,14 +41,16 @@ class AdminAiConfigPayload(BaseModel):
     # temperature: float = 0.5
 
 class SettingsRequest(BaseModel):
-    type: str  # "profile", "password", or "iot"
+    type: str  # "profile", "password", "iot", or "farm_location"
     full_name: Optional[str] = None
     phone: Optional[str] = None
     current_password: Optional[str] = None
     confirm_password: Optional[str] = None
     new_password: Optional[str] = None
     iot_url: Optional[str] = None
-    
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
     @field_validator('phone', mode='before')
     @classmethod
     def validate_phone(cls, v):
@@ -66,6 +68,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return ph.hash(password)
+
+
+def validate_farm_coordinates(lat: float, lon: float) -> None:
+    if lat < -90 or lat > 90:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Latitude must be between -90 and 90",
+        )
+    if lon < -180 or lon > 180:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Longitude must be between -180 and 180",
+        )
 
 # User Settings Endpoints
 @settings_router.post("/user/settings")
@@ -155,17 +170,40 @@ async def update_user_settings(
                 status_code=status.HTTP_200_OK,
                 content={"success": True, "detail": "IoT device URL saved successfully"}
             )
-        
+
+        elif request.type == "farm_location":
+            if request.latitude is None or request.longitude is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Latitude and longitude are required",
+                )
+            validate_farm_coordinates(request.latitude, request.longitude)
+            user.farm_latitude = request.latitude
+            user.farm_longitude = request.longitude
+            await user.save()
+
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={
+                    "success": True,
+                    "detail": "Farm location saved successfully",
+                    "farm_latitude": user.farm_latitude,
+                    "farm_longitude": user.farm_longitude,
+                },
+            )
+
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid settings type"
             )
-            
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating settings: {e}"
+            detail=f"Error updating settings: {e}",
         )
 
 
@@ -198,6 +236,13 @@ async def get_user_profile(
                 "full_name": user.name,
                 "phone": user.phone,
                 "iot_url": iot_url,
+                "farm_latitude": user.farm_latitude,
+                "farm_longitude": user.farm_longitude,
+                "farm_location": (
+                    {"latitude": user.farm_latitude, "longitude": user.farm_longitude}
+                    if user.farm_latitude is not None and user.farm_longitude is not None
+                    else None
+                ),
             }
         }
     except Exception as e:
