@@ -13,6 +13,7 @@ from controllers.admin_controller import admin_router
 from controllers.weather_controller import weather_router
 from controllers.iot_controller import iot_router
 from controllers.suggestion_controller import suggestion_router
+from controllers.azure_controller import azure_router
 # from controllers.vector_db_controller import router as vector_db_router
 # from controllers.scraper_controller import router as scraper_router
 # from controllers.disease_controller import disease_router
@@ -39,6 +40,7 @@ app.include_router(admin_router, prefix='/api', tags=['Admin'])
 app.include_router(weather_router, prefix='/api', tags=['Weather'])
 app.include_router(iot_router, prefix='/api', tags=['IoT'])
 app.include_router(suggestion_router, prefix='/api', tags=['Suggestions'])
+app.include_router(azure_router, prefix='/api', tags=['Azure Cognitive Services'])
 # app.include_router(vector_db_router, prefix='/api', tags=['Vector DB'])
 # app.include_router(scraper_router, prefix='/api', tags=['Scraper'])
 # app.include_router(disease_router, prefix='/api', tags=['Disease Detector'])
