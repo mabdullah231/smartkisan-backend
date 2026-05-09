@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from models.auth import User
 from models.api import APIConfig
+from models.chat import Chat
+from models.message import Message
+from models.suggestion import UserSuggestion
 from helpers.token_helper import get_current_user
 from typing import Annotated, Optional
 from fastapi.responses import StreamingResponse
@@ -233,3 +236,34 @@ async def set_user_active(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating user: {str(e)}")
+
+
+# GET admin statistics
+@admin_router.get("/stats")
+async def get_admin_stats(user: Annotated[User, Depends(get_current_user)]):
+    if user.user_role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can access statistics")
+    
+    try:
+        active_users = await User.exclude(user_role="admin").filter(is_active=True).count()
+        inactive_users = await User.exclude(user_role="admin").filter(is_active=False).count()
+        active_apis = await APIConfig.filter(is_active=True).count()
+        inactive_apis = await APIConfig.filter(is_active=False).count()
+        total_chats = await Chat.all().count()
+        total_messages = await Message.all().count()
+        total_suggestions = await UserSuggestion.all().count()
+        
+        return {
+            "success": True,
+            "stats": {
+                "active_users": active_users,
+                "inactive_users": inactive_users,
+                "active_apis": active_apis,
+                "inactive_apis": inactive_apis,
+                "total_chats": total_chats,
+                "total_messages": total_messages,
+                "total_suggestions": total_suggestions
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching statistics: {str(e)}")
