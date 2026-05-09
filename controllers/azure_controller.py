@@ -122,10 +122,18 @@ async def text_to_speech(
     current_user: User = Depends(get_current_user)
 ):
     try:
+        print(f"[TTS DEBUG] User: {current_user.id} ({current_user.phone})")
+        print(f"[TTS DEBUG] Text: {tts_request.text[:100]}...")
+        print(f"[TTS DEBUG] Language: {tts_request.language}")
+
         azure_config = await get_azure_config()
         tts_url = build_tts_url(azure_config.get("region"), azure_config.get("endpoint"))
         voice_name = get_voice_name(tts_request.language, tts_request.voice)
         ssml = build_ssml(tts_request.text, voice_name, tts_request.language)
+
+        print(f"[TTS DEBUG] URL: {tts_url}")
+        print(f"[TTS DEBUG] Voice: {voice_name}")
+        print(f"[TTS DEBUG] API key exists: {bool(azure_config['api_key'])}")
 
         headers = {
             "Ocp-Apim-Subscription-Key": azure_config["api_key"],
@@ -136,15 +144,21 @@ async def text_to_speech(
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(tts_url, headers=headers, content=ssml.encode("utf-8"))
+            print(f"[TTS DEBUG] Azure response: {response.status_code}")
+            if response.status_code != 200:
+                print(f"[TTS DEBUG] Azure error: {response.text}")
+            
             if response.status_code == 404 and azure_config.get("region") and azure_config.get("endpoint"):
                 fallback_url = build_tts_url(azure_config.get("region"), None)
                 if fallback_url != tts_url:
+                    print(f"[TTS DEBUG] Fallback URL: {fallback_url}")
                     response = await client.post(fallback_url, headers=headers, content=ssml.encode("utf-8"))
+                    print(f"[TTS DEBUG] Fallback response: {response.status_code}")
 
         if response.status_code != 200:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"TTS Error: {response.status_code} {response.text}"
+                detail=f"TTS Error: {response.status_code} - {response.text}"
             )
 
         return Response(
@@ -155,6 +169,7 @@ async def text_to_speech(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[TTS DEBUG] Exception: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"TTS Error: {str(e)}"
@@ -177,12 +192,13 @@ async def speech_to_text(
         stt_url = build_stt_url(azure_config.get("region"), language)
         audio_data = await audio_file.read()
 
-        print(f"[STT DEBUG] language received: '{language}'")
-        print(f"[STT DEBUG] stt_url: '{stt_url}'")
-        print(f"[STT DEBUG] audio content_type: '{audio_file.content_type}'")
-        print(f"[STT DEBUG] region: '{azure_config.get('region')}'")
-        print(f"[STT DEBUG] audio size: {len(audio_data)} bytes")
-        print(f"[STT DEBUG] audio header bytes: {audio_data[:4]}")
+        print(f"[STT DEBUG] User: {current_user.id} ({current_user.phone})")
+        print(f"[STT DEBUG] Language: '{language}'")
+        print(f"[STT DEBUG] URL: {stt_url}")
+        print(f"[STT DEBUG] Content-Type: {audio_file.content_type}")
+        print(f"[STT DEBUG] Audio size: {len(audio_data)} bytes")
+        print(f"[STT DEBUG] Audio header: {audio_data[:4]}")
+        print(f"[STT DEBUG] API key exists: {bool(azure_config['api_key'])}")
 
         headers = {
             "Ocp-Apim-Subscription-Key": azure_config["api_key"],
@@ -193,12 +209,14 @@ async def speech_to_text(
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(stt_url, headers=headers, content=audio_data)
 
-        print(f"[STT DEBUG] Azure response: {response.status_code} | {response.text}")
+        print(f"[STT DEBUG] Azure response: {response.status_code}")
+        if response.status_code != 200:
+            print(f"[STT DEBUG] Azure error: {response.text}")
 
         if response.status_code != 200:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"STT Error: {response.status_code} {response.text}"
+                detail=f"STT Error: {response.status_code} - {response.text}"
             )
 
         data = response.json()
