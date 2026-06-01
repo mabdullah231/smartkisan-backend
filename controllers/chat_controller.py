@@ -16,8 +16,9 @@ from helpers.chat_chain import ask_question
 from models.api import APIConfig
 
 class ChatPayload(BaseModel):
-    question:str
+    question: str
     history: Optional[List[Dict]] = []
+    crop_growth_stage: Optional[str] = None
 class UpdateChatNamePayload(BaseModel):
     name:str
 
@@ -40,11 +41,20 @@ async def start_chat(
         )
 
         stream_param = str(request.query_params.get("stream", "")).lower()
+        # Include user's crop growth stage in the prompt if available
+        question_with_stage = data.question
+        try:
+            if user and getattr(user, 'crop_growth_stage', None):
+                question_with_stage = f"[Growth Stage: {user.crop_growth_stage}]\n{data.question}"
+        except Exception:
+            # defensive: fallback to original question
+            question_with_stage = data.question
+
         if stream_param in ("1", "true", "yes"):
             async def responder():
                 try:
                     final_text = ""
-                    async for chunk in ask_question(request, data.question, data.history):
+                    async for chunk in ask_question(request, question_with_stage, data.history):
                         final_text += chunk
                         yield chunk.encode("utf-8")
                     await Message.create(chat=chat, question=data.question, answer=final_text)
@@ -65,7 +75,7 @@ async def start_chat(
 
         # Non-streaming fallback: collect full answer and return JSON
         response_text = ""
-        async for chunk in ask_question(request, data.question, data.history):
+        async for chunk in ask_question(request, question_with_stage, data.history):
             response_text += chunk
 
         await Message.create(chat=chat, question=data.question, answer=response_text)
@@ -109,11 +119,19 @@ async def chat_now(id: int, data: ChatPayload, request: Request, user: Annotated
         raise HTTPException(status_code=404, detail="Chat not found")
     try:
         stream_param = str(request.query_params.get("stream", "")).lower()
+        # Include user's crop growth stage in the prompt if available
+        question_with_stage = data.question
+        try:
+            if user and getattr(user, 'crop_growth_stage', None):
+                question_with_stage = f"[Growth Stage: {user.crop_growth_stage}]\n{data.question}"
+        except Exception:
+            question_with_stage = data.question
+
         if stream_param in ("1", "true", "yes"):
             async def responder():
                 try:
                     final_text = ""
-                    async for chunk in ask_question(request, data.question, data.history):
+                    async for chunk in ask_question(request, question_with_stage, data.history):
                         final_text += chunk
                         yield chunk.encode("utf-8")
                     # Save after streaming completes
@@ -130,7 +148,7 @@ async def chat_now(id: int, data: ChatPayload, request: Request, user: Annotated
 
         # Non-streaming
         response_text = ""
-        async for chunk in ask_question(request, data.question, data.history):
+        async for chunk in ask_question(request, question_with_stage, data.history):
             response_text += chunk
 
         if not chat.chat_name:

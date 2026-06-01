@@ -20,7 +20,7 @@ async def get_iot_status(user: Annotated[User, Depends(get_current_user)]):
         raise HTTPException(status_code=404, detail="IoT device URL not configured")
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=25.0) as client:
             response = await client.get(iot_config.device_url)
             response.raise_for_status()
             data = response.json()

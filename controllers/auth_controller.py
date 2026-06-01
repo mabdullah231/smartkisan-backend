@@ -77,6 +77,9 @@ class UpdateProfilePayload(BaseModel):
     phone: Optional[str] = None
     name: Optional[str] = None
     password: Optional[str] = None
+    farm_size: Optional[float] = None
+    crop_type: Optional[str] = None
+    crop_growth_stage: Optional[str] = None
     
     @field_validator('phone', mode='before')
     @classmethod
@@ -158,13 +161,18 @@ async def signin(data: LoginPayload):
     try:
         token = generate_user_token({ "id": user.id })
         
-        return { 
+        return {
             "success": True,
             "token": token,
             "user": {
                 'name': user.name,
                 'phone': user.phone,
-                'user_role': user.user_role
+                'user_role': user.user_role,
+                'farm_size': getattr(user, 'farm_size', None),
+                'crop_type': getattr(user, 'crop_type', None),
+                'crop_growth_stage': getattr(user, 'crop_growth_stage', None),
+                'farm_latitude': getattr(user, 'farm_latitude', None),
+                'farm_longitude': getattr(user, 'farm_longitude', None),
             },
             "detail":"Login Successfully"
         }
@@ -207,6 +215,7 @@ async def account_verificatoin(payload: AccountVerificationPayload):
             # confirmation_email(to_phone=user.phone)
             await code.delete()
             token = generate_user_token({ "id": user.id })
+            # Return user including farm/crop details so frontend can store them on login
             return {
                 "success": True,
                 "token": token,
@@ -214,6 +223,11 @@ async def account_verificatoin(payload: AccountVerificationPayload):
                     'name': user.name,
                     'phone': user.phone,
                     'user_role': user.user_role,
+                    'farm_size': getattr(user, 'farm_size', None),
+                    'crop_type': getattr(user, 'crop_type', None),
+                    'crop_growth_stage': getattr(user, 'crop_growth_stage', None),
+                    'farm_latitude': getattr(user, 'farm_latitude', None),
+                    'farm_longitude': getattr(user, 'farm_longitude', None),
                 },
                 "detail": "Account verified successfully"
             }
@@ -333,12 +347,22 @@ async def reset_password(data: UpdateProfilePayload,user:Annotated[User,Depends(
              user.name = data.name
         if data.phone:
             user.phone = data.phone
+        # Optional farm fields
+        if getattr(data, 'farm_size', None) is not None:
+            user.farm_size = data.farm_size
+        if getattr(data, 'crop_type', None):
+            user.crop_type = data.crop_type
+        if getattr(data, 'crop_growth_stage', None):
+            user.crop_growth_stage = data.crop_growth_stage
         await user.save()
         return {
             "success": True,
             "data": {
                 "name": user.name,
                 "phone": user.phone,
+                "farm_size": user.farm_size,
+                "crop_type": user.crop_type,
+                "crop_growth_stage": user.crop_growth_stage,
             },
             "detail": "Profile updated successfully"
         }

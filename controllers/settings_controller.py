@@ -50,6 +50,9 @@ class SettingsRequest(BaseModel):
     iot_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    farm_size: Optional[float] = None
+    crop_type: Optional[str] = None
+    crop_growth_stage: Optional[str] = None
 
     @field_validator('phone', mode='before')
     @classmethod
@@ -192,6 +195,26 @@ async def update_user_settings(
                 },
             )
 
+        elif request.type == "farm_details":
+            # Accept farm_size (nullable), crop_type (default 'wheat'), crop_growth_stage (nullable)
+            if request.farm_size is not None:
+                user.farm_size = request.farm_size
+            if request.crop_type is not None:
+                user.crop_type = request.crop_type
+            if request.crop_growth_stage is not None:
+                user.crop_growth_stage = request.crop_growth_stage
+            await user.save()
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={
+                    "success": True,
+                    "detail": "Farm details saved successfully",
+                    "farm_size": user.farm_size,
+                    "crop_type": user.crop_type,
+                    "crop_growth_stage": user.crop_growth_stage,
+                },
+            )
+
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -243,6 +266,9 @@ async def get_user_profile(
                     if user.farm_latitude is not None and user.farm_longitude is not None
                     else None
                 ),
+                "farm_size": user.farm_size,
+                "crop_type": user.crop_type,
+                "crop_growth_stage": user.crop_growth_stage,
             }
         }
     except Exception as e:

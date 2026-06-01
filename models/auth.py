@@ -14,6 +14,10 @@ class User(Model):
     # Saved farm coordinates (same units as weather API: decimal degrees)
     farm_latitude = fields.FloatField(null=True)
     farm_longitude = fields.FloatField(null=True)
+    # New fields: farm size (in acres), crop type and crop growth stage
+    farm_size = fields.FloatField(null=True)
+    crop_type = fields.CharField(max_length=255, default="wheat")
+    crop_growth_stage = fields.CharField(max_length=255, null=True)
 
 class Code(Model):
     __tablename__ = 'codes'
